@@ -35,4 +35,4 @@ The model is designed to be scalable, allowing for future expansion. New dimensi
 
 The schema and relationships between tables are designed to be easily understood by non-technical stakeholders, such as business users and upper management. For example, `fact_transactions` connects with `Dim_Customer`, `Dim_Loan`, `Dim_Account`, `Dim_Deposit`, and `Dim_Currency` to enable both cross-sectional and time-based reporting.
 
-![Image Description](pic.png)
+![Image Description](https://github.com/MinaBadri/data-pipeline-case/blob/main/DataModel.png)
