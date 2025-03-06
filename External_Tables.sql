@@ -13,10 +13,15 @@ FILE_FORMAT = csv_format
 AUTO_REFRESH = TRUE
 PATTERN = '.*accounts.*\\.csv$'
 AS
-SELECT $1::INT AS customer_id,
-       $2::STRING AS customer_type,
-       $3::STRING AS country
-FROM @mystage/accounts/;
+SELECT $1::INT AS account_number,
+       $2::DECIMAL AS camount,
+       $3::STRING AS account_name,
+       $4::STRING AS account_type,
+       $5::DATE AS reference_date
+
+FROM @mystage/accounts/
+WHERE reference_date > (SELECT MAX(reference_date) FROM staging_facts);
+
 
 
 CREATE OR REPLACE EXTERNAL TABLE ext_loans
@@ -37,7 +42,8 @@ SELECT $1::INT AS loan_id,
        $10::DATE AS start_date,
        $11::DATE AS maturity_date,
        $12::DATE AS reference_date
-FROM @mystage/loans/;
+FROM @mystage/loans/
+WHERE reference_date > (SELECT MAX(reference_date) FROM staging_facts);
 
 
 
@@ -59,6 +65,7 @@ SELECT $1::INT AS deposit_id,
        $10::DATE AS start_date,
        $11::DATE AS maturity_date,
        $12::DATE AS reference_date
-FROM @mystage/deposits/;
+FROM @mystage/deposits/
+WHERE reference_date > (SELECT MAX(reference_date) FROM staging_facts);
     
        

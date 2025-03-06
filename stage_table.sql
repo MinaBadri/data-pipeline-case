@@ -1,64 +1,117 @@
-CREATE OR REPLACE TABLE staging_accounts (
-  accounts_number INT PRIMARY KEY,
-  amount INT,
-  account_name VARCHAR(50),
-  account_type VARCHAR(50),
-  reference_date DATE,
-  		
-);
-
-CREATE OR REPLACE TABLE staging_loans (
-    loan_id INT PRIMARY KEY,
-    accounts_number INT REFERENCES staging_accounts(accounts_number),
-    customer VARCHAR(50),
+CREATE OR REPLACE TABLE staging_customers AS
+SELECT DISTINCT
+    customer VARCHAR(50) PRIMARY KEY ,
     customer_type VARCHAR(50),
-    loan_type VARCHAR(50),
-    country CHAR(10),
-    amount DECIMAL(18,2),
-    currency CHAR(5),
-    exchange_rate DECIMAL(10,4),
-    startdate DATE,
-    maturity_date DATE,
-    reference_date DATE,
-    
-);
+    country CHAR(10)
+FROM (
+    SELECT customer,  customer_type, country FROM ext_deposits
+    UNION ALL
+    SELECT customer,  customer_type, country  FROM ext_loans
+)
+WHERE customer IS NOT NULL;
 
-CREATE OR REPLACE TABLE staging_deposits (
-    deposit_id INT PRIMARY KEY,
-    accounts_number INT REFERENCES staging_accounts(accounts_number),
-    customer VARCHAR(50),
-    customer_type VARCHAR(50),
-    deposit_type VARCHAR(50),
-    country CHAR(10),
-    amount DECIMAL(18,2),
-    currency CHAR(5),
-    exchange_rate DECIMAL(10,4),
-    startdate DATE,
-    maturity_date DATE,
+CREATE OR REPLACE TABLE staging_currency AS
+SELECT DISTINCT
+    ROW_NUMBER() OVER (ORDER BY currency) AS PRIMARY_KEY,
+    currency CHAR(10),
+    exchange_rate DECIMAL(10,2)
+FROM (
+    SELECT currency, exchange_rate FROM ext_loans
+    UNION ALL
+    SELECT currency, exchange_rateFROM ext_deposits
+)
+WHERE currency IS NOT NULL;
+
+
+CREATE OR REPLACE TABLE staging_accounts AS
+SELECT DISTINCT
+    accounts_number INT PRIMARY KEY,
+    account_name VARCHAR(50),
+    account_type VARCHAR(50),
     reference_date DATE
-);
-
-
-INSERT INTO staging_accounts (accounts_number, account_type, country)
-SELECT DISTINCT accounts_number, customer_type, country
-FROM ext_customers
+FROM (
+    SELECT accounts_number, account_name, account_type, reference_date FROM ext_accounts
+)
 WHERE accounts_number IS NOT NULL;
 
-INSERT INTO staging_loans (loan_id, accounts_number, customer, customer_type, loan_type, country, amount, currency, exchange_rate, startdate, maturity_date, reference_date)
-SELECT DISTINCT loan_id, accounts_number, customer, customer_type, loan_type, country, amount, currency, exchange_rate, startdate, maturity_date, reference_date
-FROM ext_loans
-WHERE loan_id IS NOT NULL AND accounts_number IS NOT NULL;
 
-INSERT INTO staging_deposits (deposit_id, accounts_number, customer, customer_type, deposit_type,country, amount, currency, exchange_rate, startdate, maturity_date, reference_date)
-SELECT DISTINCT ddeposit_id, accounts_number, customer, customer_type, deposit_type,country, amount, currency, exchange_rate, startdate, maturity_date, reference_date
+
+CREATE OR REPLACE TABLE staging_loans AS
+SELECT DISTINCT
+    loan_id VARCHAR(50) PRIMARY KEY ,
+    loan_type VARCHAR(50)
+FROM ext_loans
+WHERE loan_id IS NOT NULL;
+
+
+CREATE OR REPLACE TABLE staging_deposits AS
+SELECT DISTINCT
+    deposit_id VARCHAR(50) PRIMARY KEY ,
+    deposit_type VARCHAR(50)
 FROM ext_deposits
-WHERE deposit_id IS NOT NULL AND accounts_number IS NOT NULL;
+WHERE deposit_id IS NOT NULL;
+
+
+
+CREATE OR REPLACE TABLE staging_facts AS
+SELECT 
+    ROW_NUMBER() OVER (ORDER BY reference_date) AS PRIMARY_KEY,
+    NULL AS loan_id, 
+    NULL AS accounts_number, 
+    customer,
+    NULL AS deposit_id, 
+    amount,
+    currency,
+    startdate,
+    maturity_date,
+    reference_date
+FROM (
+    SELECT loan_id, 
+           NULL AS accounts_number, 
+           customer, 
+           NULL AS deposit_id, 
+           amount, 
+           currency, 
+           startdate, 
+           maturity_date, 
+           reference_date
+    FROM ext_loans
+
+    UNION ALL
+
+    SELECT NULL AS loan_id, 
+           accounts_number, 
+           NULL AS customer, 
+           NULL AS deposit_id, 
+           amount, 
+           NULL AS currency, 
+           NULL AS startdate, 
+           NULL AS maturity_date, 
+           reference_date
+    FROM ext_accounts
+
+    UNION ALL
+
+    SELECT NULL AS loan_id, 
+           NULL AS accounts_number, 
+           customer, 
+           deposit_id, 
+           amount, 
+           currency, 
+           startdate, 
+           maturity_date, 
+           reference_date
+    FROM ext_deposits
+);
+
+
 
 
 CREATE OR REPLACE TABLE staging_loans_dedup AS
 SELECT * FROM (
     SELECT *, ROW_NUMBER() OVER (PARTITION BY loan_id ORDER BY start_date DESC) AS row_num
     FROM staging_loans
+
 
 ) WHERE row_num = 1;
 
@@ -77,16 +130,31 @@ SELECT * FROM (
 ) WHERE row_num = 1;
 
 
-SELECT * FROM staging_loans WHERE amount IS NULL OR amount <= 0;
-SELECT * FROM staging_deposits WHERE amount IS NULL OR amount <= 0;
+CREATE OR REPLACE TABLE staging_customers_dedup AS
+SELECT * FROM (
+    SELECT *, ROW_NUMBER() OVER (PARTITION BY customer ORDER BY start_date DESC) AS row_num
+    FROM staging_customers
+
+) WHERE row_num = 1;    
+
+CREATE OR REPLACE TABLE staging_facts_dedup AS
+SELECT * FROM (
+    SELECT *, ROW_NUMBER() OVER (PARTITION BY reference_date ORDER BY start_date DESC) AS row_num
+    FROM staging_facts
+
+) WHERE row_num = 1;
 
 
-SELECT s.loan_id
-FROM staging_loans s
-LEFT JOIN staging_customers c ON s.customer_id = c.customer_id
-WHERE c.customer_id IS NULL;
+-- SELECT * FROM staging_loans WHERE amount IS NULL OR amount <= 0;
+-- SELECT * FROM staging_deposits WHERE amount IS NULL OR amount <= 0;
 
-SELECT s.deposit_id
-FROM staging_deposits s
-LEFT JOIN staging_customers c ON s.customer_id = c.customer_id
-WHERE c.customer_id IS NULL;
+
+-- SELECT s.loan_id
+-- FROM staging_loans s
+-- LEFT JOIN staging_customers c ON s.customer_id = c.customer_id
+-- WHERE c.customer_id IS NULL;
+
+-- SELECT s.deposit_id
+-- FROM staging_deposits s
+-- LEFT JOIN staging_customers c ON s.customer_id = c.customer_id
+-- WHERE c.customer_id IS NULL;
