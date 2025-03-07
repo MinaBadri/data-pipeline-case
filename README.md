@@ -25,7 +25,6 @@ This table will store transaction-related data, including loans, deposits, and a
 - **`Dim_Loan`**: Contains details about loans (`loan_id`, `loan_type`).
 - **`Dim_Deposit`**: Contains details about deposits (`deposit_id`, `deposit_type`).
 - **`Dim_Currency`**: Stores currency information (`currency_id`, `exchange_rate`).
-- **`Dim_Date`**: A calendar dimension to store various date types, such as transaction date, start date, maturity date, etc.
 
 ### Flexibility
 
